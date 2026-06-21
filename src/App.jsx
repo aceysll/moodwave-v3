@@ -338,15 +338,16 @@ export default function App() {
     setSavingPlaylist(false);
   };
 
-  const accentColor = result?.mood?.color || "#a084ff";
-  const rgb = result ? hexToRgb(accentColor) : "100, 80, 200";
+  const accentColor = result?.mood?.color || bgColor !== "#0a0a14" ? bgColor : "#a084ff";
+  const rgb = hexToRgb(accentColor || "#a084ff");
 
   return (
     <div style={{
       minHeight: "100vh",
       background: `
-        radial-gradient(ellipse at 15% 15%, rgba(${rgb}, 0.18) 0%, transparent 50%),
-        radial-gradient(ellipse at 85% 80%, rgba(${rgb}, 0.1) 0%, transparent 45%),
+        radial-gradient(ellipse at 10% 10%, rgba(${rgb}, 0.35) 0%, transparent 45%),
+        radial-gradient(ellipse at 90% 85%, rgba(${rgb}, 0.22) 0%, transparent 40%),
+        radial-gradient(ellipse at 50% 50%, rgba(${rgb}, 0.08) 0%, transparent 70%),
         #080810
       `,
       color: "#fff",
@@ -364,7 +365,7 @@ export default function App() {
           width: p.size, height: p.size,
           borderRadius: "50%",
           background: accentColor,
-          opacity: 0.15,
+          opacity: 0.3,
           animation: `float ${p.duration}s ${p.delay}s ease-in-out infinite alternate`,
           pointerEvents: "none",
         }} />
@@ -372,8 +373,8 @@ export default function App() {
 
       <style>{`
         @keyframes float {
-          from { transform: translateY(0px) scale(1); opacity: 0.1; }
-          to { transform: translateY(-30px) scale(1.4); opacity: 0.25; }
+          from { transform: translateY(0px) scale(1); opacity: 0.2; }
+          to { transform: translateY(-30px) scale(1.4); opacity: 0.45; }
         }
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(12px); }
@@ -403,8 +404,7 @@ export default function App() {
               setSelectedTracks(new Set());
               setPlaylistUrl(null);
               setPlaylistError("");
-              setBgColor("#0a0a14");
-              setParticles([]);
+              // keep bgColor and particles so the mood color lingers on home
             }}
             style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
           >
