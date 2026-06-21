@@ -394,7 +394,20 @@ export default function App() {
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "24px 0 0",
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div
+            onClick={() => {
+              setResult(null);
+              setMood("");
+              setError("");
+              setOffset(0);
+              setSelectedTracks(new Set());
+              setPlaylistUrl(null);
+              setPlaylistError("");
+              setBgColor("#0a0a14");
+              setParticles([]);
+            }}
+            style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
+          >
             <span style={{
               fontSize: 22,
               filter: `drop-shadow(0 0 8px rgba(${rgb}, 0.6))`,
@@ -434,35 +447,102 @@ export default function App() {
 
         {/* Hero */}
         {!result && !loading && (
-          <div style={{
-            textAlign: "center", padding: "72px 0 56px",
-            animation: "fadeIn 0.6s ease",
-          }}>
-            <div style={{
-              display: "inline-block", marginBottom: 24,
-              padding: "5px 16px", borderRadius: 20,
-              background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.5)",
-              letterSpacing: "0.1em",
-            }}>
-              MUSIC FOR YOUR MOOD
+          <div style={{ animation: "fadeIn 0.6s ease" }}>
+            <div style={{ textAlign: "center", padding: "64px 0 44px" }}>
+              <div style={{
+                display: "inline-block", marginBottom: 24,
+                padding: "5px 16px", borderRadius: 20,
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.5)",
+                letterSpacing: "0.1em",
+              }}>
+                MUSIC FOR YOUR MOOD
+              </div>
+              <h1 style={{
+                fontSize: "clamp(32px, 10vw, 56px)",
+                fontWeight: 900, letterSpacing: "-0.035em",
+                lineHeight: 1.05, marginBottom: 16,
+              }}>
+                How are you<br />
+                <span style={{ color: "rgba(255,255,255,0.2)" }}>feeling right now?</span>
+              </h1>
+              <p style={{
+                fontSize: 15, color: "rgba(255,255,255,0.35)",
+                lineHeight: 1.8, maxWidth: 360, margin: "0 auto",
+              }}>
+                Type a mood, a vibe, an artist, or anything.
+                Get music that actually fits.
+              </p>
             </div>
-            <h1 style={{
-              fontSize: "clamp(32px, 10vw, 56px)",
-              fontWeight: 900, letterSpacing: "-0.035em",
-              lineHeight: 1.05, marginBottom: 16,
+
+            {/* Example mood pills */}
+            <div style={{ marginBottom: 48 }}>
+              <div style={{
+                fontSize: 10, fontWeight: 700, letterSpacing: "0.12em",
+                color: "rgba(255,255,255,0.2)", textTransform: "uppercase",
+                marginBottom: 14, textAlign: "center",
+              }}>
+                Try something like...
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+                {[
+                  "drunk Drake", "late night crying", "gym hype",
+                  "Sunday morning chill", "heartbreak but make it danceable",
+                  "nostalgic 2010s", "focus mode", "driving at 2am",
+                ].map((example) => (
+                  <button
+                    key={example}
+                    onClick={() => { setMood(example); search(example, 0); }}
+                    style={{
+                      padding: "8px 16px", borderRadius: 20,
+                      background: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      color: "rgba(255,255,255,0.55)", fontSize: 12,
+                      fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
+                      transition: "all 0.15s",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.background = "rgba(255,255,255,0.1)";
+                      e.target.style.color = "#fff";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.background = "rgba(255,255,255,0.05)";
+                      e.target.style.color = "rgba(255,255,255,0.55)";
+                    }}
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* How it works */}
+            <div style={{
+              display: "grid", gridTemplateColumns: "1fr 1fr",
+              gap: 10, marginBottom: 20,
             }}>
-              How are you<br />
-              <span style={{ color: "rgba(255,255,255,0.2)" }}>feeling right now?</span>
-            </h1>
-            <p style={{
-              fontSize: 15, color: "rgba(255,255,255,0.35)",
-              lineHeight: 1.8, maxWidth: 360, margin: "0 auto",
-            }}>
-              Type a mood, a vibe, an artist, or anything.
-              Get music that actually fits.
-            </p>
+              {[
+                { icon: "🎭", title: "Describe anything", desc: "A mood, an artist, a feeling, a time of day." },
+                { icon: "🧠", title: "AI reads the vibe", desc: "Extracts tags and artists that match what you mean." },
+                { icon: "📡", title: "Real listener data", desc: "Last.fm surfaces tracks millions of people actually play." },
+                { icon: "🎧", title: "Save to Spotify", desc: "Connect once and save any result as a playlist." },
+              ].map(({ icon, title, desc }) => (
+                <div key={title} style={{
+                  padding: "16px", borderRadius: 12,
+                  background: "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                }}>
+                  <div style={{ fontSize: 20, marginBottom: 8 }}>{icon}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, color: "rgba(255,255,255,0.8)" }}>
+                    {title}
+                  </div>
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", lineHeight: 1.6 }}>
+                    {desc}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
