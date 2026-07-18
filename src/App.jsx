@@ -97,6 +97,71 @@ function hexToRgb(hex) {
   return `${r}, ${g}, ${b}`;
 }
 
+// ── Loading Overlay ────────────────────────────────────────────
+const LOADING_MESSAGES = [
+  "Reading the room...",
+  "Matching the vibe...",
+  "Digging through tags...",
+  "Tuning to your taste...",
+  "Almost there...",
+];
+
+function LoadingOverlay({ accent = "#8b5cf6" }) {
+  const [msgIndex, setMsgIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setMsgIndex(i => (i + 1) % LOADING_MESSAGES.length);
+    }, 1400);
+    return () => clearInterval(interval);
+  }, []);
+
+  const rgb = hexToRgb(accent);
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 100,
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      background: "rgba(7,7,15,0.88)", backdropFilter: "blur(12px)",
+      animation: "overlayFadeIn 0.25s ease",
+    }}>
+      <style>{`
+        @keyframes overlayFadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes eqBar {
+          0%, 100% { transform: scaleY(0.3); }
+          50% { transform: scaleY(1); }
+        }
+        @keyframes msgFade {
+          0% { opacity: 0; transform: translateY(6px); }
+          15% { opacity: 1; transform: translateY(0); }
+          85% { opacity: 1; transform: translateY(0); }
+          100% { opacity: 0; transform: translateY(-6px); }
+        }
+      `}</style>
+
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 5, height: 40, marginBottom: 24 }}>
+        {[0, 1, 2, 3, 4].map(i => (
+          <div key={i} style={{
+            width: 5, height: "100%", borderRadius: 3,
+            background: `rgba(${rgb}, 0.9)`,
+            boxShadow: `0 0 10px rgba(${rgb}, 0.6)`,
+            transformOrigin: "bottom",
+            animation: `eqBar ${0.6 + i * 0.12}s ease-in-out infinite`,
+            animationDelay: `${i * 0.08}s`,
+          }} />
+        ))}
+      </div>
+
+      <div key={msgIndex} style={{
+        fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.6)",
+        letterSpacing: "0.02em", animation: "msgFade 1.4s ease",
+      }}>
+        {LOADING_MESSAGES[msgIndex]}
+      </div>
+    </div>
+  );
+}
+
 // ── Track Card ─────────────────────────────────────────────────
 function TrackCard({ track, index, accentColor, onSelect, selected }) {
   const [playing, setPlaying] = useState(false);
@@ -229,6 +294,8 @@ function Home({ ctx }) {
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
       padding: "40px 24px", position: "relative", overflow: "hidden",
     }}>
+      {loading && <LoadingOverlay accent="#8b5cf6" />}
+
       {/* Particles */}
       {particles.map(p => (
         <div key={p.id} style={{
@@ -449,6 +516,8 @@ function Results({ ctx }) {
       background: `radial-gradient(ellipse at 20% 20%, rgba(${rgb}, 0.12) 0%, #07070f 60%)`,
       transition: "background 1s ease",
     }}>
+      {loading && <LoadingOverlay accent={accentColor} />}
+
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         * { box-sizing: border-box; }
