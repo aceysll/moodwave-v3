@@ -37,7 +37,7 @@ export default async function handler(request) {
           {
             role: "system",
             content: `You are a music curator. Given a mood, feeling, or music description, return a JSON object with:
-- "tags": array of 4-6 Last.fm music tags matching the mood/vibe, genre accuracy is critical, do not mix unrelated genres
+- "tags": array of 4-6 Last.fm music tags, ordered from MOST specific to least specific relative to what the user typed. If they named a subgenre (e.g. "pop rap", "drill", "boom bap"), that exact tag must be first and should dominate results, broader parent genres like "hip hop" or "rap" come last and only as thin backup
 - "artists": array of 3-5 seed artist names who genuinely fit the mood and genre described. IMPORTANT: if the user mentions a specific artist by name, always include them first
 - "color": a hex color representing this mood visually
 - "label": a 2-4 word poetic label for the mood
@@ -53,6 +53,7 @@ Return ONLY valid JSON, no markdown.`,
     const raw = groqData.choices[0].message.content.trim().replace(/```json|```/g, "").trim();
     const moodProfile = JSON.parse(raw);
     const { tags, artists, color, label, detectedArtist } = moodProfile;
+    const moodTagsLower = tags.map(t => t.toLowerCase());
 
     const trackSet = new Map();
 
@@ -68,9 +69,10 @@ Return ONLY valid JSON, no markdown.`,
       } catch (_) {}
     }
 
-    for (const tag of tags.slice(0, 3)) {
+    const weightedTags = tags.slice(0, 4).map((tag, i) => ({ tag, limit: i === 0 ? 30 : 8 }));
+    for (const { tag, limit } of weightedTags) {
       try {
-        const url = `https://ws.audioscrobbler.com/2.0/?method=tag.gettoptracks&tag=${encodeURIComponent(tag)}&api_key=${LASTFM_KEY}&format=json&limit=20&page=${Math.floor(offset / 20) + 1}`;
+        const url = `https://ws.audioscrobbler.com/2.0/?method=tag.gettoptracks&tag=${encodeURIComponent(tag)}&api_key=${LASTFM_KEY}&format=json&limit=${limit}&page=${Math.floor(offset / 20) + 1}`;
         const res = await fetch(url);
         const data = await res.json();
         for (const t of data?.tracks?.track || []) {
@@ -101,14 +103,26 @@ Return ONLY valid JSON, no markdown.`,
       const personalArtists = topArtists.slice(0, 3).filter(a => !genreSeedArtists.includes(a));
       for (const artist of personalArtists) {
         try {
-          const url = `https://ws.audioscrobbler.com/2.0/?method=artist.gettoptracks&artist=${encodeURIComponent(artist)}&api_key=${LASTFM_KEY}&format=json&limit=8`;
+          const url = `https://ws.audioscrobbler.com/2.0/?method=artist.gettoptracks&artist=${encodeURIComponent(artist)}&api_key=${LASTFM_KEY}&format=json&limit=15`;
           const res = await fetch(url);
           const data = await res.json();
-          for (const t of data?.toptracks?.track || []) {
+          const tracks = data?.toptracks?.track || [];
+          let matched = 0;
+          for (const t of tracks) {
+            if (matched >= 8) break;
             const key = `${t.name}::${t.artist.name}`.toLowerCase();
-            if (!trackSet.has(key)) {
-              trackSet.set(key, { name: t.name, artist: t.artist.name, listeners: parseInt(t.listeners || 0), priority: 4 });
-            }
+            if (trackSet.has(key)) continue;
+            try {
+              const tagUrl = `https://ws.audioscrobbler.com/2.0/?method=track.gettoptags&artist=${encodeURIComponent(artist)}&track=${encodeURIComponent(t.name)}&api_key=${LASTFM_KEY}&format=json`;
+              const tagRes = await fetch(tagUrl);
+              const tagData = await tagRes.json();
+              const trackTags = (tagData?.toptags?.tag || []).map(tg => tg.name.toLowerCase());
+              const fits = trackTags.some(tg => moodTagsLower.some(mt => tg.includes(mt) || mt.includes(tg)));
+              if (fits) {
+                trackSet.set(key, { name: t.name, artist: t.artist.name, listeners: parseInt(t.listeners || 0), priority: 4 });
+                matched++;
+              }
+            } catch (_) {}
           }
         } catch (_) {}
       }
