@@ -27,10 +27,6 @@ export default async function handler(request) {
 
     const LASTFM_KEY = process.env.LASTFM_API_KEY;
 
-    const personalizationNote = topArtists.length > 0
-      ? `\nThis user's top Spotify artists are: ${topArtists.join(", ")}. Bias your artist and tag suggestions toward their taste where it fits the mood.`
-      : "";
-
     const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${process.env.GROQ_API_KEY}` },
@@ -41,12 +37,11 @@ export default async function handler(request) {
           {
             role: "system",
             content: `You are a music curator. Given a mood, feeling, or music description, return a JSON object with:
-- "tags": array of 4-6 Last.fm music tags matching the mood/vibe
-- "artists": array of 3-5 seed artist names. IMPORTANT: if the user mentions a specific artist by name, always include them first
+- "tags": array of 4-6 Last.fm music tags matching the mood/vibe, genre accuracy is critical, do not mix unrelated genres
+- "artists": array of 3-5 seed artist names who genuinely fit the mood and genre described. IMPORTANT: if the user mentions a specific artist by name, always include them first
 - "color": a hex color representing this mood visually
 - "label": a 2-4 word poetic label for the mood
 - "detectedArtist": the name of any specific artist mentioned by the user, or null if none
-${personalizationNote}
 Return ONLY valid JSON, no markdown.`,
           },
           { role: "user", content: mood },
@@ -128,6 +123,16 @@ Return ONLY valid JSON, no markdown.`,
       for (const a of data?.similarartists?.artist || []) similarArtists.push({ name: a.name });
     } catch (_) {}
 
+    const ARTIST_CAP = 2;
+    const artistCounts = new Map();
+    const withinCap = (t) => {
+      const key = t.artist.toLowerCase();
+      const count = artistCounts.get(key) || 0;
+      if (count >= ARTIST_CAP) return false;
+      artistCounts.set(key, count + 1);
+      return true;
+    };
+
     const genrePool = [...trackSet.values()]
       .filter(t => t.priority <= 3)
       .sort((a, b) => a.priority - b.priority || b.listeners - a.listeners);
@@ -137,15 +142,25 @@ Return ONLY valid JSON, no markdown.`,
       .sort((a, b) => b.listeners - a.listeners);
 
     const candidates = [];
-    let gi = Math.floor(offset * (2 / 3));
-    let pi = Math.floor(offset * (1 / 3));
+    let gi = 0, pi = 0, skipG = Math.floor(offset * (2 / 3)), skipP = Math.floor(offset * (1 / 3));
+
     while (candidates.length < 25 && (gi < genrePool.length || pi < personalPool.length)) {
-      for (let k = 0; k < 2 && gi < genrePool.length && candidates.length < 25; k++) {
-        candidates.push(genrePool[gi++]);
+      let added = 0;
+      while (added < 2 && gi < genrePool.length && candidates.length < 25) {
+        const t = genrePool[gi++];
+        if (!withinCap(t)) continue;
+        if (skipG > 0) { skipG--; continue; }
+        candidates.push(t);
+        added++;
       }
       if (pi < personalPool.length && candidates.length < 25) {
-        candidates.push(personalPool[pi++]);
+        const t = personalPool[pi++];
+        if (withinCap(t)) {
+          if (skipP > 0) skipP--;
+          else candidates.push(t);
+        }
       }
+      if (gi >= genrePool.length && pi >= personalPool.length) break;
     }
 
     const spotifyToken = await getSpotifyToken();
