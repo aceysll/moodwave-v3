@@ -27,12 +27,10 @@ export default async function handler(request) {
 
     const LASTFM_KEY = process.env.LASTFM_API_KEY;
 
-    // Build personalization context for Groq
     const personalizationNote = topArtists.length > 0
       ? `\nThis user's top Spotify artists are: ${topArtists.join(", ")}. Bias your artist and tag suggestions toward their taste where it fits the mood.`
       : "";
 
-    // Step 1: Groq mood analysis
     const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${process.env.GROQ_API_KEY}` },
@@ -63,7 +61,6 @@ Return ONLY valid JSON, no markdown.`,
 
     const trackSet = new Map();
 
-    // Step 2: Detected artist tracks
     if (detectedArtist) {
       try {
         const url = `https://ws.audioscrobbler.com/2.0/?method=artist.gettoptracks&artist=${encodeURIComponent(detectedArtist)}&api_key=${LASTFM_KEY}&format=json&limit=20`;
@@ -76,7 +73,6 @@ Return ONLY valid JSON, no markdown.`,
       } catch (_) {}
     }
 
-    // Step 3: Tag-based discovery
     for (const tag of tags.slice(0, 3)) {
       try {
         const url = `https://ws.audioscrobbler.com/2.0/?method=tag.gettoptracks&tag=${encodeURIComponent(tag)}&api_key=${LASTFM_KEY}&format=json&limit=20&page=${Math.floor(offset / 20) + 1}`;
@@ -91,12 +87,8 @@ Return ONLY valid JSON, no markdown.`,
       } catch (_) {}
     }
 
-    // Step 4: Seed artist tracks (includes user's top artists if personalized)
-    const allSeedArtists = topArtists.length > 0
-      ? [...new Set([...artists.slice(0, 2), ...topArtists.slice(0, 2)])]
-      : artists.slice(0, 3);
-
-    for (const artist of allSeedArtists) {
+    const genreSeedArtists = artists.slice(0, 3);
+    for (const artist of genreSeedArtists) {
       try {
         const url = `https://ws.audioscrobbler.com/2.0/?method=artist.gettoptracks&artist=${encodeURIComponent(artist)}&api_key=${LASTFM_KEY}&format=json&limit=10`;
         const res = await fetch(url);
@@ -104,13 +96,29 @@ Return ONLY valid JSON, no markdown.`,
         for (const t of data?.toptracks?.track || []) {
           const key = `${t.name}::${t.artist.name}`.toLowerCase();
           if (!trackSet.has(key)) {
-            trackSet.set(key, { name: t.name, artist: t.artist.name, listeners: parseInt(t.listeners || 0), priority: topArtists.includes(artist) ? 2 : 3 });
+            trackSet.set(key, { name: t.name, artist: t.artist.name, listeners: parseInt(t.listeners || 0), priority: 3 });
           }
         }
       } catch (_) {}
     }
 
-    // Step 5: Similar artists
+    if (topArtists.length > 0) {
+      const personalArtists = topArtists.slice(0, 2).filter(a => !genreSeedArtists.includes(a));
+      for (const artist of personalArtists) {
+        try {
+          const url = `https://ws.audioscrobbler.com/2.0/?method=artist.gettoptracks&artist=${encodeURIComponent(artist)}&api_key=${LASTFM_KEY}&format=json&limit=5`;
+          const res = await fetch(url);
+          const data = await res.json();
+          for (const t of data?.toptracks?.track || []) {
+            const key = `${t.name}::${t.artist.name}`.toLowerCase();
+            if (!trackSet.has(key)) {
+              trackSet.set(key, { name: t.name, artist: t.artist.name, listeners: parseInt(t.listeners || 0), priority: 4 });
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
     const similarArtists = [];
     try {
       const seedArtist = detectedArtist || artists[0];
@@ -124,7 +132,6 @@ Return ONLY valid JSON, no markdown.`,
       .sort((a, b) => a.priority - b.priority || b.listeners - a.listeners)
       .slice(offset, offset + 25);
 
-    // Step 6: Spotify enrichment
     const spotifyToken = await getSpotifyToken();
     const enriched = [];
 
