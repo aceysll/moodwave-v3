@@ -103,10 +103,10 @@ Return ONLY valid JSON, no markdown.`,
     }
 
     if (topArtists.length > 0) {
-      const personalArtists = topArtists.slice(0, 2).filter(a => !genreSeedArtists.includes(a));
+      const personalArtists = topArtists.slice(0, 3).filter(a => !genreSeedArtists.includes(a));
       for (const artist of personalArtists) {
         try {
-          const url = `https://ws.audioscrobbler.com/2.0/?method=artist.gettoptracks&artist=${encodeURIComponent(artist)}&api_key=${LASTFM_KEY}&format=json&limit=5`;
+          const url = `https://ws.audioscrobbler.com/2.0/?method=artist.gettoptracks&artist=${encodeURIComponent(artist)}&api_key=${LASTFM_KEY}&format=json&limit=8`;
           const res = await fetch(url);
           const data = await res.json();
           for (const t of data?.toptracks?.track || []) {
@@ -128,9 +128,25 @@ Return ONLY valid JSON, no markdown.`,
       for (const a of data?.similarartists?.artist || []) similarArtists.push({ name: a.name });
     } catch (_) {}
 
-    const candidates = [...trackSet.values()]
-      .sort((a, b) => a.priority - b.priority || b.listeners - a.listeners)
-      .slice(offset, offset + 25);
+    const genrePool = [...trackSet.values()]
+      .filter(t => t.priority <= 3)
+      .sort((a, b) => a.priority - b.priority || b.listeners - a.listeners);
+
+    const personalPool = [...trackSet.values()]
+      .filter(t => t.priority === 4)
+      .sort((a, b) => b.listeners - a.listeners);
+
+    const candidates = [];
+    let gi = Math.floor(offset * (2 / 3));
+    let pi = Math.floor(offset * (1 / 3));
+    while (candidates.length < 25 && (gi < genrePool.length || pi < personalPool.length)) {
+      for (let k = 0; k < 2 && gi < genrePool.length && candidates.length < 25; k++) {
+        candidates.push(genrePool[gi++]);
+      }
+      if (pi < personalPool.length && candidates.length < 25) {
+        candidates.push(personalPool[pi++]);
+      }
+    }
 
     const spotifyToken = await getSpotifyToken();
     const enriched = [];
